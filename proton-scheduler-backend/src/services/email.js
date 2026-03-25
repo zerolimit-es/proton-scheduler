@@ -1,14 +1,9 @@
 /**
  * Email Notification Service
- * 
+ *
  * Sends booking confirmations and notifications via SMTP.
- * Designed to work with Proton Mail Bridge for end-to-end encrypted email.
- * 
- * Setup for Proton Bridge:
- * 1. Install Proton Bridge: https://proton.me/mail/bridge
- * 2. Log in with your Proton account
- * 3. Use the SMTP settings provided by Bridge (usually localhost:1025)
- * 4. Configure .env with your Bridge credentials
+ * Works with any SMTP provider. Configure host, port, and
+ * credentials in .env.
  */
 
 import nodemailer from 'nodemailer';
@@ -33,7 +28,7 @@ function getTransporter() {
       user: config.email.user,
       pass: config.email.pass,
     } : undefined,
-    // For Proton Bridge, we may need to ignore self-signed certs in dev
+    // Allow self-signed certs in development
     tls: {
       rejectUnauthorized: config.nodeEnv === 'production',
     },

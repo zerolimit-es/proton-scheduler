@@ -36,7 +36,7 @@ export const config = {
     clientSecret: process.env.SOLID_CLIENT_SECRET || undefined,
   },
 
-  // Email (Proton Bridge)
+  // Email (SMTP)
   email: {
     host: process.env.SMTP_HOST || '127.0.0.1',
     port: parseInt(process.env.SMTP_PORT || '1025', 10),

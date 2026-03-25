@@ -12,7 +12,7 @@ function escHtml(str) {
 }
 
 const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST || 'smtp.tem.scaleway.com',
+  host: process.env.SMTP_HOST || 'localhost',
   port: parseInt(process.env.SMTP_PORT || '587'),
   secure: false,
   auth: {
@@ -327,7 +327,7 @@ export async function sendCancellationNotice(booking, options = {}) {
 export async function verifySmtp() {
   try {
     await transporter.verify();
-    console.log('[Email] ✓ SMTP connection verified (Scaleway TEM)');
+    console.log('[Email] ✓ SMTP connection verified');
     return true;
   } catch (err) {
     console.error('[Email] ✗ SMTP connection failed:', err.message);
