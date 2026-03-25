@@ -5,7 +5,6 @@
 # Usage:
 #   ./start.sh           - Start in development mode
 #   ./start.sh prod      - Start in production mode
-#   ./start.sh staging   - Start staging environment
 #   ./start.sh stop      - Stop all services
 # =============================================================================
 
@@ -14,12 +13,11 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-# Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
-NC='\033[0m' # No Color
+NC='\033[0m'
 
 log_info()    { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
@@ -74,31 +72,16 @@ start_prod() {
     log_info "View logs with: docker compose logs -f"
 }
 
-start_staging() {
-    log_info "Building frontend..."
-    cd proton-scheduler-frontend && npm ci && rm -rf dist && npm run build && cd ..
-
-    log_info "Starting ProtonScheduler STAGING..."
-    docker compose -f docker-compose.staging.yml up -d --build
-
-    log_success "Staging is starting..."
-    echo ""
-    sleep 5
-    docker compose -f docker-compose.staging.yml ps
-}
-
 stop_all() {
     log_info "Stopping ProtonScheduler..."
     docker compose down 2>/dev/null || true
     docker compose -f docker-compose.dev.yml down 2>/dev/null || true
-    docker compose -f docker-compose.staging.yml down 2>/dev/null || true
     log_success "All services stopped"
 }
 
 show_status() {
     log_info "Service Status:"
     docker compose ps
-    docker compose -f docker-compose.staging.yml ps 2>/dev/null || true
 }
 
 main() {
@@ -120,10 +103,6 @@ main() {
             setup_env
             start_prod
             ;;
-        staging)
-            setup_env
-            start_staging
-            ;;
         stop)
             stop_all
             ;;
@@ -131,12 +110,11 @@ main() {
             show_status
             ;;
         *)
-            echo "Usage: $0 {dev|prod|staging|stop|status}"
+            echo "Usage: $0 {dev|prod|stop|status}"
             echo ""
             echo "Commands:"
             echo "  dev, development  - Start in development mode with hot reload"
             echo "  prod, production  - Start in production mode (detached)"
-            echo "  staging           - Start staging environment"
             echo "  stop              - Stop all services"
             echo "  status            - Show service status"
             exit 1
