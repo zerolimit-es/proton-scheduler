@@ -1,0 +1,37 @@
+# =============================================================================
+# ProtonScheduler — Caddyfile (HTTPS reverse proxy)
+# =============================================================================
+# Caddy automatically obtains and renews Let's Encrypt certificates.
+# Replace {$DOMAIN} with your domain or set the DOMAIN env var.
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d
+# =============================================================================
+
+{$DOMAIN:localhost} {
+	# API — proxy to backend
+	handle /api/* {
+		reverse_proxy backend:3001
+	}
+
+	# Everything else — proxy to frontend (nginx serving built React app)
+	handle {
+		reverse_proxy frontend:80
+	}
+
+	# Security headers
+	header {
+		X-Frame-Options "SAMEORIGIN"
+		X-Content-Type-Options "nosniff"
+		X-XSS-Protection "1; mode=block"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+
+	# Logging
+	log {
+		output stdout
+		format console
+	}
+}

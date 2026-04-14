@@ -11,14 +11,32 @@ Your calendar data belongs to you. ProtonScheduler stores scheduling data in you
 - **Persistent sessions** — Redis-backed sessions survive server restarts
 - **Public booking page** — Share a link for others to book time with you
 - **Email notifications** — Booking confirmations and organizer alerts via SMTP
+- **CalDAV calendar sync** — Sync bookings to Nextcloud, Radicale, or any CalDAV server
 - **ICS export** — Download .ics calendar files for any booking
 - **Self-hosted** — Run on your own infrastructure, MIT licensed
 
-## Quick Start
+## Self-Hosting (Docker)
 
 ```bash
 git clone https://github.com/zerolimit-es/solid-scheduler.git
-cd proton-scheduler
+cd solid-scheduler
+cp .env.example .env    # then edit .env
+docker compose up -d
+```
+
+For HTTPS (required in production), add Caddy:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d
+```
+
+See **[SELF-HOSTING.md](SELF-HOSTING.md)** for the full guide — SMTP, CalDAV, Solid Pod providers, SSL with nginx, and more.
+
+## Development Setup
+
+```bash
+git clone https://github.com/zerolimit-es/solid-scheduler.git
+cd solid-scheduler
 
 # Install dependencies
 cd proton-scheduler-backend && npm install && cd ..
@@ -46,7 +64,7 @@ make dev      # Start frontend dev server (Vite)
 ## Project Structure
 
 ```
-proton-scheduler/
+solid-scheduler/
 ├── proton-scheduler-backend/     # Express API (Node 20, ESM)
 │   ├── src/
 │   │   ├── config/               # Configuration
@@ -69,10 +87,15 @@ proton-scheduler/
 │   │       └── layout/           # Header, LoginScreen
 │   └── package.json
 │
-├── docker/nginx/                 # Nginx config
-├── docker-compose.yml            # Production
+├── docker/
+│   ├── nginx/                    # Nginx reverse proxy config
+│   └── caddy/                    # Caddy reverse proxy config
+├── docker-compose.yml            # Base (frontend + backend + redis)
+├── docker-compose.caddy.yml      # HTTPS via Caddy (automatic certs)
+├── docker-compose.nginx.yml      # HTTPS via nginx + Certbot
 ├── docker-compose.dev.yml        # Development
 ├── Makefile
+├── SELF-HOSTING.md               # Deployment guide
 ├── CONTRIBUTING.md
 └── README.md
 ```
@@ -86,6 +109,7 @@ proton-scheduler/
 | Sessions | Redis (write-through + in-memory fallback) |
 | Auth | Solid OIDC + optional WebAuthn/Passkey MFA |
 | Email | Any SMTP provider |
+| Calendar Sync | CalDAV (Nextcloud, Radicale, Baikal) |
 | Containers | Docker + Docker Compose |
 
 ## Environment Variables

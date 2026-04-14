@@ -2,13 +2,39 @@
 # ProtonScheduler — Docker Compose (Self-Hosted)
 # =============================================================================
 #
-# Start:  docker compose up -d
+# Quick start:
+#   cp .env.example .env        # then edit .env
+#   docker compose up -d        # builds frontend + backend, starts everything
+#
 # Logs:   docker compose logs -f
 # Stop:   docker compose down
+#
+# For HTTPS in production, see SELF-HOSTING.md or use the Caddy override:
+#   docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d
 # =============================================================================
 
 services:
 
+  # -- Frontend (React app — builds inside Docker, served by nginx) --
+  # By default listens on port 80. When using a reverse proxy (Caddy/nginx),
+  # set FRONTEND_PORT=127.0.0.1:3000 in .env to keep it internal-only.
+  frontend:
+    build:
+      context: .
+      dockerfile: proton-scheduler-frontend/Dockerfile
+      target: production
+      args:
+        VITE_API_URL: ${BASE_URL:-http://localhost:3001}
+    container_name: protonscheduler-frontend
+    restart: unless-stopped
+    ports:
+      - "${FRONTEND_PORT:-0.0.0.0:80}:80"
+    depends_on:
+      - backend
+    networks:
+      - internal
+
+  # -- Backend (Express API) --
   backend:
     build:
       context: ./proton-scheduler-backend
@@ -25,6 +51,7 @@ services:
     networks:
       - internal
 
+  # -- Redis (session storage) --
   redis:
     image: redis:7-alpine
     container_name: protonscheduler-redis
@@ -32,22 +59,6 @@ services:
     command: redis-server --maxmemory 128mb --maxmemory-policy allkeys-lru
     volumes:
       - redis-data:/data
-    networks:
-      - internal
-
-  nginx:
-    image: nginx:alpine
-    container_name: protonscheduler-nginx
-    restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - /etc/letsencrypt:/etc/letsencrypt:ro
-      - ./proton-scheduler-frontend/dist:/usr/share/nginx/app:ro
-    depends_on:
-      - backend
     networks:
       - internal
 

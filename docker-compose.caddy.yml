@@ -1,0 +1,37 @@
+# =============================================================================
+# ProtonScheduler — Caddy HTTPS Override
+# =============================================================================
+# Adds a Caddy reverse proxy with automatic HTTPS (Let's Encrypt).
+#
+# Usage:
+#   docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d
+#
+# Required env vars (in .env):
+#   DOMAIN=your-domain.com
+# =============================================================================
+
+services:
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: protonscheduler-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      - DOMAIN=${DOMAIN:-localhost}
+    volumes:
+      - ./docker/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - internal
+
+volumes:
+  caddy-data:
+  caddy-config:

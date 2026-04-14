@@ -1,0 +1,52 @@
+# =============================================================================
+# ProtonScheduler — Nginx + Certbot HTTPS Override
+# =============================================================================
+# Adds an nginx reverse proxy with Let's Encrypt certificates via Certbot.
+#
+# First, obtain a certificate:
+#   docker compose -f docker-compose.yml -f docker-compose.nginx.yml run --rm \
+#     certbot certonly --webroot -w /var/www/certbot \
+#     -d your-domain.com --email you@example.com --agree-tos
+#
+# Then start everything:
+#   docker compose -f docker-compose.yml -f docker-compose.nginx.yml up -d
+#
+# Renew certificates (add to crontab):
+#   docker compose -f docker-compose.yml -f docker-compose.nginx.yml \
+#     run --rm certbot renew
+#
+# IMPORTANT: Edit docker/nginx/nginx.conf and replace "your-domain.com"
+# with your actual domain before starting.
+# =============================================================================
+
+services:
+
+  nginx:
+    image: nginx:alpine
+    container_name: protonscheduler-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./docker/nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - certbot-webroot:/var/www/certbot:ro
+      - certbot-certs:/etc/letsencrypt:ro
+    depends_on:
+      - frontend
+      - backend
+    networks:
+      - internal
+
+  certbot:
+    image: certbot/certbot
+    container_name: protonscheduler-certbot
+    volumes:
+      - certbot-webroot:/var/www/certbot
+      - certbot-certs:/etc/letsencrypt
+    profiles:
+      - certbot
+
+volumes:
+  certbot-webroot:
+  certbot-certs:

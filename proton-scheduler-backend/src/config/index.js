@@ -10,7 +10,7 @@ const nodeEnv = process.env.NODE_ENV || 'development';
 // Validate critical secrets in production
 if (nodeEnv === 'production') {
   const sessionSecret = process.env.SESSION_SECRET;
-  if (!sessionSecret || sessionSecret.length < 32) {
+  if (\!sessionSecret || sessionSecret.length < 32) {
     throw new Error('SESSION_SECRET must be set and at least 32 characters in production');
   }
 }
@@ -52,6 +52,15 @@ export const config = {
     availabilityFile: process.env.POD_AVAILABILITY_FILE || 'availability.ttl',
     bookingsContainer: process.env.POD_BOOKINGS_CONTAINER || 'bookings',
     publicProfile: process.env.POD_PUBLIC_PROFILE || 'public-profile.ttl',
+  },
+
+  // CalDAV (optional — sync bookings to an external calendar)
+  caldav: {
+    serverUrl: process.env.CALDAV_SERVER_URL || '',
+    username: process.env.CALDAV_USERNAME || '',
+    password: process.env.CALDAV_PASSWORD || '',
+    calendarName: process.env.CALDAV_CALENDAR_NAME || '',
+    enabled: process.env.CALDAV_ENABLED === 'true',
   },
 };
 
