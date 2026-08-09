@@ -144,7 +144,9 @@ export async function sendVisitorConfirmation({ booking, icsContent, branding })
 
   await transporter.sendMail({
     from: FROM,
-    to: `"${attendee.name}" <${attendee.email}>`,
+    // Address-object form: nodemailer encodes the display name, so a
+    // crafted attendee name can't inject headers or extra recipients.
+    to: { name: attendee.name, address: attendee.email },
     subject: `Meeting Confirmed — ${date} at ${startTime}`,
     html,
     icalEvent: {
@@ -296,7 +298,7 @@ export async function sendCancellationNotice(booking, options = {}) {
     try {
       results.attendee = await transporter.sendMail({
         ...mailOptions,
-        to: `"${booking.attendee.name}" <${booking.attendee.email}>`,
+        to: { name: booking.attendee.name, address: booking.attendee.email },
       });
       console.log(`[Email] ✓ Cancellation sent to attendee: ${booking.attendee.email}`);
     } catch (err) {

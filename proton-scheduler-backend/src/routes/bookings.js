@@ -12,6 +12,7 @@
  * - GET /api/bookings/presets - Get recurrence presets
  */
 
+import crypto from 'crypto';
 import { validate, createBookingSchema } from '../middleware/validate.js';
 import { Router } from 'express';
 import { requireAuth, getAuthenticatedFetch } from '../middleware/auth.js';
@@ -93,11 +94,14 @@ router.get('/', requireAuth(), async (req, res) => {
       });
     }
 
-    // Fallback: read from SQLite when Pod session is unavailable
+    // Fallback: read from SQLite when Pod session is unavailable.
+    // Multi-tenant deployments must scope by the tenant's slug — a tenant
+    // without a booking slug gets an empty list, never other tenants' data.
+    // Only a single-user deployment (no tenant record) may read everything.
     const slug = req.tenant?.booking_slug;
     const rows = slug
       ? getBookingsBySlug(slug, { limit: 50, upcoming: false })
-      : getAllUpcomingBookings({ limit: 50 });
+      : (req.tenant ? [] : getAllUpcomingBookings({ limit: 50 }));
 
     const bookings = rows.map(r => ({
       id: r.id,
@@ -303,7 +307,7 @@ router.post('/', requireAuth(), async (req, res) => {
     }
 
     // ── Fallback: Solid session lost → save to SQLite ──
-    const bookingId = `booking-${Date.now()}-${Math.random().toString(36).substr(2, 8)}`;
+    const bookingId = `booking-${crypto.randomUUID()}`;
     const slug = req.tenant?.booking_slug || 'my-booking';
     const title = `Meeting with ${attendee.name}`;
 
@@ -450,8 +454,11 @@ router.get('/upcoming', requireAuth(), async (req, res) => {
       });
     }
 
-    // Fallback: read from SQLite
-    const rows = getAllUpcomingBookings({ limit: parseInt(limit) });
+    // Fallback: read from SQLite, scoped to the requesting tenant
+    const upcomingSlug = req.tenant?.booking_slug;
+    const rows = upcomingSlug
+      ? getBookingsBySlug(upcomingSlug, { limit: parseInt(limit), upcoming: true })
+      : (req.tenant ? [] : getAllUpcomingBookings({ limit: parseInt(limit) }));
     const bookings = rows.map(r => ({
       id: r.id,
       title: r.title,
@@ -495,8 +502,11 @@ router.get('/stats', requireAuth(), async (req, res) => {
       return res.json(stats);
     }
 
-    // Fallback: stats from SQLite
+    // Fallback: stats from SQLite, scoped to the requesting tenant
     const slug = req.tenant?.booking_slug || null;
+    if (req.tenant && !slug) {
+      return res.json({ thisWeek: 0, thisMonth: 0, upcoming: 0, unsynced: 0, source: 'local' });
+    }
     const stats = getLocalBookingStats(slug);
     res.json({ ...stats, source: 'local' });
   } catch (error) {
@@ -552,9 +562,10 @@ router.get('/:id', requireAuth(), async (req, res) => {
       });
     }
 
-    // Verify the booking belongs to the requesting user's tenant (by slug match)
+    // Verify the booking belongs to the requesting user's tenant (by slug match).
+    // A tenant without a booking slug owns no bookings — deny rather than leak.
     const tenantSlug = req.tenant?.booking_slug;
-    if (tenantSlug && row.slug && row.slug !== tenantSlug) {
+    if (req.tenant && row.slug !== tenantSlug) {
       return res.status(404).json({
         error: 'Booking not found',
         message: `No booking found with ID: ${id}`,

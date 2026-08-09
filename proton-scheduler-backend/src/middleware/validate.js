@@ -40,14 +40,24 @@ export function validate(schema) {
 
 // ── Schemas ──────────────────────────────────────────────────────────────────
 
+/**
+ * Person name: no control characters (blocks header/log injection through
+ * email display names and ICS fields).
+ */
+const nameField = z.string()
+  .min(1, 'Name is required')
+  .max(100, 'Name must be under 100 characters')
+  // eslint-disable-next-line no-control-regex
+  .regex(/^[^\x00-\x1f\x7f]+$/, 'Name contains invalid characters');
+
 /** POST /api/public/:slug/book */
 export const publicBookingSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
   time: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be HH:MM'),
-  name: z.string().min(1, 'Name is required').max(100, 'Name must be under 100 characters'),
+  name: nameField,
   email: z.string().email('Invalid email address'),
   notes: z.string().max(1000, 'Notes must be under 1000 characters').optional().default(''),
-  teamMemberId: z.string().optional(),
+  teamMemberId: z.string().max(100).optional(),
   recurrence: z.object({
     frequency: z.enum(['DAILY', 'WEEKLY', 'MONTHLY', 'YEARLY']),
     interval: z.number().int().positive().optional(),
@@ -59,7 +69,7 @@ export const publicBookingSchema = z.object({
 export const createBookingSchema = z.object({
   date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Date must be YYYY-MM-DD'),
   time: z.string().regex(/^\d{2}:\d{2}$/, 'Time must be HH:MM'),
-  name: z.string().min(1, 'Name is required').max(100, 'Name must be under 100 characters'),
+  name: nameField,
   email: z.string().email('Invalid email address'),
   notes: z.string().max(1000, 'Notes must be under 1000 characters').optional().default(''),
   recurrence: z.object({

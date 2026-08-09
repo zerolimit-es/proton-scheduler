@@ -22,23 +22,26 @@ export function getDb() {
 
     // ── Encryption (AES-256 via SQLite3MultipleCiphers) ──
     if (DB_KEY) {
+      // Single quotes in the key must be doubled so the key can't terminate
+      // the pragma string literal early.
+      const quotedKey = DB_KEY.replace(/'/g, "''");
       const dbExists = fs.existsSync(DB_PATH) && fs.statSync(DB_PATH).size > 0;
       if (dbExists) {
         // Try opening as encrypted first
         try {
-          db.pragma(`key='${DB_KEY}'`);
+          db.pragma(`key='${quotedKey}'`);
           // Verify the key works by reading a table
           db.pragma('schema_version');
         } catch {
           // DB is unencrypted — close, reopen, and encrypt in-place
           db.close();
           db = new Database(DB_PATH);
-          db.pragma(`rekey='${DB_KEY}'`);
+          db.pragma(`rekey='${quotedKey}'`);
           console.log('[DB] Encrypted existing database with AES-256');
         }
       } else {
         // New DB — set encryption key from the start
-        db.pragma(`key='${DB_KEY}'`);
+        db.pragma(`key='${quotedKey}'`);
       }
     }
 

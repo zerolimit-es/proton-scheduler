@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { validate, publicBookingSchema } from '../middleware/validate.js';
 import { bookingLimiter, publicReadLimiter } from '../middleware/rateLimit.js';
 import { Router } from 'express';
@@ -7,7 +8,6 @@ import {
   initBookingsTable,
   createBooking,
   getBookingsBySlug,
-  getAllUpcomingBookings,
   getBookingStats,
   getBookedSlots,
   cancelBooking,
@@ -42,7 +42,7 @@ try {
 }
 
 // GET /api/public/:slug - booking page info
-router.get('/:slug', (req, res) => {
+router.get('/:slug', publicReadLimiter, (req, res) => {
   const { slug } = req.params;
   if (['register', 'resolve', 'bookings'].includes(slug)) return res.status(404).json({ error: 'Not found' });
   const stats = getBookingStats(slug);
@@ -51,7 +51,7 @@ router.get('/:slug', (req, res) => {
 });
 
 // GET /api/public/:slug/team - public team info for booking page
-router.get('/:slug/team', (req, res) => {
+router.get('/:slug/team', publicReadLimiter, (req, res) => {
   const { slug } = req.params;
   const organizer = getTenantBySlug(slug);
   if (!organizer || (organizer.scheduling_mode || 'none') === 'none') {
@@ -69,7 +69,7 @@ router.get('/:slug/team', (req, res) => {
 });
 
 // GET /api/public/:slug/availability - public availability for calendar
-router.get('/:slug/availability', (req, res) => {
+router.get('/:slug/availability', publicReadLimiter, (req, res) => {
   try {
     const avail = getAvailability(req.params.slug);
     if (!avail) {
@@ -116,7 +116,7 @@ router.get('/:slug/availability', (req, res) => {
 });
 
 // GET /api/public/:slug/slots - available slots for a date
-router.get('/:slug/slots', (req, res) => {
+router.get('/:slug/slots', publicReadLimiter, (req, res) => {
   try {
     const { slug } = req.params;
     const { date } = req.query;
@@ -283,7 +283,9 @@ router.post('/:slug/book', bookingLimiter, validate(publicBookingSchema), async 
     const endM = endMinTotal % 60;
     const endTime = `${endH.toString().padStart(2, '0')}:${endM.toString().padStart(2, '0')}`;
 
-    const bookingId = `booking-${Date.now()}-${Math.random().toString(36).substr(2, 8)}`;
+    // Cryptographically random ID — it doubles as the cancellation/ICS
+    // capability token, so it must not be guessable.
+    const bookingId = `booking-${crypto.randomUUID()}`;
     const [year, month, day] = date.split('-').map(Number);
 
     // ICS — use TZID so Proton Mail doesn't warn "Floating times not supported"
@@ -404,10 +406,13 @@ router.post('/:slug/book', bookingLimiter, validate(publicBookingSchema), async 
 });
 
 // GET /api/public/:slug/bookings
-router.get('/:slug/bookings', (req, res) => {
+// Public endpoint: only expose busy time ranges, never attendee PII
+// (names, emails, notes, ICS content stay private to the organizer).
+router.get('/:slug/bookings', publicReadLimiter, (req, res) => {
   try {
     const { slug } = req.params;
-    const bookings = getBookingsBySlug(slug, { limit: 20, upcoming: true });
+    const bookings = getBookingsBySlug(slug, { limit: 20, upcoming: true })
+      .map(b => ({ start: b.start_time, end: b.end_time }));
     const stats = getBookingStats(slug);
     res.json({ bookings, stats });
   } catch (error) {
@@ -415,24 +420,18 @@ router.get('/:slug/bookings', (req, res) => {
   }
 });
 
-// GET /api/public/bookings/all
-router.get('/bookings/all', (req, res) => {
-  try {
-    const bookings = getAllUpcomingBookings({ limit: 20 });
-    const stats = getBookingStats();
-    res.json({ bookings, stats });
-  } catch (error) {
-    res.status(500).json({ error: 'Failed to get bookings', message: safeMessage(error) });
-  }
-});
-
 // GET /api/public/:slug/ics/:id
-router.get('/:slug/ics/:id', (req, res) => {
+// The unguessable booking ID acts as the access token; the slug must match
+// so a booking can't be fetched through another organizer's page.
+router.get('/:slug/ics/:id', publicReadLimiter, (req, res) => {
   try {
     const booking = getBookingById(req.params.id);
-    if (!booking) return res.status(404).json({ error: 'Booking not found' });
+    if (!booking || booking.slug !== req.params.slug) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
+    const safeId = req.params.id.replace(/[^a-zA-Z0-9_-]/g, '');
     res.setHeader('Content-Type', 'text/calendar; charset=utf-8');
-    res.setHeader('Content-Disposition', `attachment; filename="meeting-${req.params.id}.ics"`);
+    res.setHeader('Content-Disposition', `attachment; filename="meeting-${safeId}.ics"`);
     res.send(booking.ics_content);
   } catch (error) {
     res.status(500).json({ error: 'Failed to get ICS', message: safeMessage(error) });
@@ -440,7 +439,9 @@ router.get('/:slug/ics/:id', (req, res) => {
 });
 
 // DELETE /api/public/:slug/bookings/:id
-router.delete('/:slug/bookings/:id', (req, res) => {
+// Rate-limited to slow down booking-ID guessing; the slug must match the
+// booking so IDs can't be replayed across booking pages.
+router.delete('/:slug/bookings/:id', bookingLimiter, (req, res) => {
   try {
     // Check organizer's tier allows cancellation
     const tenant = getTenantBySlug(req.params.slug);
@@ -455,7 +456,9 @@ router.delete('/:slug/bookings/:id', (req, res) => {
       }
     }
     const booking = getBookingById(req.params.id);
-    if (!booking) return res.status(404).json({ error: 'Booking not found' });
+    if (!booking || booking.slug !== req.params.slug) {
+      return res.status(404).json({ error: 'Booking not found' });
+    }
     cancelBooking(req.params.id);
     res.json({ success: true, message: 'Booking cancelled' });
   } catch (error) {
