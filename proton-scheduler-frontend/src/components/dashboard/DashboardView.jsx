@@ -1,4 +1,5 @@
 import React from 'react';
+import { apiFetch } from '../../services/api';
 import { CalendarIcon, ClockIcon, LinkIcon, CheckIcon, LoaderIcon, DownloadIcon, CancelIcon } from '../common/Icons';
 import { AlertTriangle, Check } from 'lucide-react';
 
@@ -15,19 +16,13 @@ export default function DashboardView({
     setCancellingId(bookingId);
     const booking = bookings.find(b => b.id === bookingId);
     try {
-      const res = await fetch(`/api/bookings/${bookingId}`, {
+      await apiFetch(`/api/bookings/${bookingId}`, {
         method: 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        credentials: 'include',
         body: JSON.stringify(booking ? {
           title: booking.title, start: booking.start, end: booking.end,
           attendee: booking.attendee, notes: booking.notes, location: booking.location,
         } : undefined),
       });
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || 'Failed to cancel booking');
-      }
       setBookings(prev => prev.filter(b => b.id !== bookingId));
     } catch (err) {
       console.error('[Cancel] Failed:', err.message);
