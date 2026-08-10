@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main, develop]
 
+# CI only builds and tests — it never writes to the repo.
+permissions:
+  contents: read
+
 env:
   NODE_VERSION: '20'
 
