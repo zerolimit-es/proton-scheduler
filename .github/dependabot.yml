@@ -1,0 +1,40 @@
+# Dependabot version updates — keeps dependencies current in both packages.
+# Complementary to the "Dependabot security updates" toggle in repo settings:
+# security updates react to advisories immediately; these scheduled updates
+# keep everything else from drifting far enough to make those patches hard.
+version: 2
+
+updates:
+  # Backend (Express API)
+  - package-ecosystem: npm
+    directory: /proton-scheduler-backend
+    schedule:
+      interval: weekly
+      day: monday
+    # Group minor/patch bumps into a single PR to keep noise down;
+    # majors still arrive individually since they may need code changes.
+    groups:
+      backend-minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    open-pull-requests-limit: 5
+
+  # Frontend (React SPA)
+  - package-ecosystem: npm
+    directory: /proton-scheduler-frontend
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      frontend-minor-and-patch:
+        update-types:
+          - minor
+          - patch
+    open-pull-requests-limit: 5
+
+  # CI workflow actions (actions/checkout, actions/setup-node, …)
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
