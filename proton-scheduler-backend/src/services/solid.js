@@ -9,6 +9,7 @@
  * with the Inrupt SDK since the core package doesn't include them yet.
  */
 
+import crypto from 'crypto';
 import config from '../config/index.js';
 import {
   getSchedulerPaths as _getSchedulerPaths,
@@ -127,7 +128,7 @@ export async function saveCalendarEvent(podUrl, event, fetch) {
     // Container already exists
   }
 
-  const eventId = event.id || `event-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const eventId = event.id || `event-${crypto.randomUUID()}`;
   const eventUrl = `${containerUrl}${eventId}.ttl`;
 
   // Idempotent: skip if exists

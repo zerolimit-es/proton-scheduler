@@ -73,6 +73,49 @@ app.use(cookieSession({
 app.use(solidSessionMiddleware());
 
 // =============================================================================
+// CSRF protection
+// =============================================================================
+// The API is consumed cross-origin by the SPA, so a token round-trip is
+// impractical; instead, every state-changing request that rides on a session
+// cookie must present an Origin (or Referer) matching an allowed origin.
+// Cookieless requests (public booking calls, curl, calendar clients) are
+// unaffected — without ambient cookie credentials there is nothing for a
+// cross-site attacker to forge. Session cookies are additionally SameSite=Lax.
+
+const allowedCsrfOrigins = new Set(
+  [
+    config.frontendUrl,
+    config.baseUrl,
+    ...(config.nodeEnv === 'development'
+      ? ['http://localhost:3000', 'http://localhost:5173']
+      : []),
+  ]
+    .filter(Boolean)
+    .map((u) => { try { return new URL(u).origin; } catch { return null; } })
+    .filter(Boolean)
+);
+
+app.use((req, res, next) => {
+  if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) return next();
+  const s = req.session;
+  const usesSessionCookie = !!(s && (s.solidSessionId || s.tenantId || s.webId));
+  if (!usesSessionCookie) return next();
+
+  let origin = req.get('Origin') || null;
+  if (!origin) {
+    const referer = req.get('Referer');
+    if (referer) { try { origin = new URL(referer).origin; } catch { origin = null; } }
+  }
+  if (!origin || !allowedCsrfOrigins.has(origin)) {
+    return res.status(403).json({
+      error: 'Forbidden',
+      message: 'Cross-site request rejected',
+    });
+  }
+  next();
+});
+
+// =============================================================================
 // 2. Standard Middleware
 // =============================================================================
 

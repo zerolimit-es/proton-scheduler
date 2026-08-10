@@ -8,6 +8,7 @@
  * - Recurring events support
  */
 
+import crypto from 'crypto';
 import solidService from './solid.js';
 import emailService from './email.js';
 import { generateICS, generateRecurringICS, generateOccurrenceCancellationICS } from '../utils/ics.js';
@@ -242,7 +243,7 @@ export async function createBooking(params, options = {}) {
   }
   
   // Create booking object
-  const bookingId = `booking-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  const bookingId = `booking-${crypto.randomUUID()}`;
   const seriesId = recurrence ? `series-${bookingId}` : null;
   
   const booking = {
