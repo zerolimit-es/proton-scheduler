@@ -116,6 +116,17 @@ app.use((req, res, next) => {
   next();
 });
 
+// Token-based CSRF protection (lusca), applied globally so every route
+// handler is covered. The SPA fetches a per-session token from
+// GET /api/csrf-token and echoes it back in the X-CSRF-Token header on
+// every state-changing request. Public visitor/calendar paths bypass
+// token validation (prefix match): they serve cookieless clients, where
+// CSRF does not apply — and the origin check above still covers any
+// cookie-carrying request to them.
+app.use(lusca.csrf({
+  blocklist: ['/api/public/', '/book/', '/cal/'],
+}));
+
 // =============================================================================
 // 2. Standard Middleware
 // =============================================================================
@@ -163,21 +174,11 @@ app.use('/api/auth/callback', (req, _res, next) => {
   next();
 });
 
-// Token-based CSRF protection (lusca) for the cookie-authenticated route
-// groups, complementing the origin check above. The SPA fetches a
-// per-session token from GET /api/csrf-token and echoes it back in the
-// X-CSRF-Token header on every state-changing request. Public routes
-// (/api/public, /book, /cal) stay token-free: they serve cookieless
-// visitors and calendar clients, where CSRF does not apply.
-const csrfProtection = lusca.csrf();
-
-app.get('/api/csrf-token', csrfProtection, (req, res) => {
+// CSRF token endpoint — the global lusca middleware has already computed
+// the per-session token for this request.
+app.get('/api/csrf-token', (req, res) => {
   res.json({ csrfToken: res.locals._csrf });
 });
-
-app.use('/api/auth', csrfProtection);
-app.use('/api/availability', csrfProtection);
-app.use('/api/bookings', csrfProtection);
 
 // Core routes
 // Mark session as MFA-verified after successful passkey auth-verify,
