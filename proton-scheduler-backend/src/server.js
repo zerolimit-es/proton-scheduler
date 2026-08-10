@@ -8,6 +8,7 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import lusca from 'lusca';
 import cookieSession from 'cookie-session';
 import config from './config/index.js';
 import { solidSessionMiddleware } from './middleware/auth.js';
@@ -162,6 +163,22 @@ app.use('/api/auth/callback', (req, _res, next) => {
   next();
 });
 
+// Token-based CSRF protection (lusca) for the cookie-authenticated route
+// groups, complementing the origin check above. The SPA fetches a
+// per-session token from GET /api/csrf-token and echoes it back in the
+// X-CSRF-Token header on every state-changing request. Public routes
+// (/api/public, /book, /cal) stay token-free: they serve cookieless
+// visitors and calendar clients, where CSRF does not apply.
+const csrfProtection = lusca.csrf();
+
+app.get('/api/csrf-token', csrfProtection, (req, res) => {
+  res.json({ csrfToken: res.locals._csrf });
+});
+
+app.use('/api/auth', csrfProtection);
+app.use('/api/availability', csrfProtection);
+app.use('/api/bookings', csrfProtection);
+
 // Core routes
 // Mark session as MFA-verified after successful passkey auth-verify,
 // so Pod reconnect doesn't re-trigger the passkey challenge.
@@ -196,9 +213,14 @@ app.use((req, res) => {
 
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
-  res.status(err.status || 500).json({
-    error: err.name || 'Internal Server Error',
-    message: config.nodeEnv === 'development' ? err.message : 'Something went wrong',
+  // lusca signals CSRF failures by setting res.statusCode = 403 before
+  // calling next(err) — preserve that instead of collapsing to 500.
+  const status = err.status || (res.statusCode >= 400 ? res.statusCode : 500);
+  const isCsrf = /^CSRF token/.test(err.message || '');
+  res.status(status).json({
+    error: isCsrf ? 'Forbidden' : (err.name || 'Internal Server Error'),
+    message: isCsrf ? 'CSRF token missing or invalid'
+      : config.nodeEnv === 'development' ? err.message : 'Something went wrong',
   });
 });
 

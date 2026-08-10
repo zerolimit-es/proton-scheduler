@@ -34,16 +34,54 @@ export class ApiError extends Error {
   }
 }
 
+// ── CSRF token handling ──────────────────────────────────────────────────────
+// The backend requires an X-CSRF-Token header on state-changing requests to
+// the cookie-authenticated route groups (/api/auth, /api/availability,
+// /api/bookings). Public endpoints (/api/public) are token-free.
+
+let csrfToken = null;
+const CSRF_EXEMPT = /^\/api\/public\//;
+
+async function fetchCsrfToken() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/csrf-token`, { credentials: 'include' });
+    if (!res.ok) return null;
+    const data = await res.json();
+    csrfToken = data.csrfToken || null;
+  } catch {
+    csrfToken = null;
+  }
+  return csrfToken;
+}
+
 export async function apiFetch(endpoint, options = {}) {
   const url = `${API_BASE_URL}${endpoint}`;
-  const config = {
-    ...options,
-    credentials: 'include',
-    headers: { 'Content-Type': 'application/json', ...options.headers },
+  const method = (options.method || 'GET').toUpperCase();
+  const needsCsrf = !['GET', 'HEAD', 'OPTIONS'].includes(method) && !CSRF_EXEMPT.test(endpoint);
+
+  const doFetch = async () => {
+    if (needsCsrf && !csrfToken) await fetchCsrfToken();
+    const config = {
+      ...options,
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(needsCsrf && csrfToken ? { 'X-CSRF-Token': csrfToken } : {}),
+        ...options.headers,
+      },
+    };
+    return fetch(url, config);
   };
 
   try {
-    const response = await fetch(url, config);
+    let response = await doFetch();
+
+    // Stale/missing token (e.g. session rotated) — refresh it and retry once
+    if (response.status === 403 && needsCsrf) {
+      csrfToken = null;
+      response = await doFetch();
+    }
+
     const contentType = response.headers.get('content-type');
 
     if (contentType?.includes('text/calendar')) {
